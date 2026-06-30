@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONNECT - 참가자</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .screen { display: none; }
+        .active { display: block; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <div id="app" class="max-w-md mx-auto p-4">
+        <!-- 1. 로그인/입장 화면 -->
+        <section id="screen-login" class="screen active mt-10">
+            <h1 class="text-3xl font-bold text-center mb-8 text-blue-600">CONNECT</h1>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <input id="user-name" type="text" placeholder="이름을 입력하세요" class="w-full border p-3 rounded mb-4">
+                <select id="user-team" class="w-full border p-3 rounded mb-6">
+                    <option value="">팀 선택</option>
+                    <option value="1">1조</option>
+                    <option value="2">2조</option>
+                    <option value="3">3조</option>
+                    <option value="4">4조</option>
+                    <option value="5">5조</option>
+                </select>
+                <button onclick="joinGame()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">게임 입장</button>
+            </div>
+        </section>
+
+        <!-- 2. 로비 화면 (대기) -->
+        <section id="screen-lobby" class="screen mt-10 text-center">
+            <div class="animate-bounce text-6xl mb-4">🎮</div>
+            <h2 class="text-2xl font-bold mb-2">로비 대기 중...</h2>
+            <p id="lobby-msg" class="text-gray-600">팀원들이 모일 때까지 잠시만 기다려주세요.</p>
+        </section>
+
+        <!-- 3. 인터뷰 화면 (질문 답변) -->
+        <section id="screen-interview" class="screen mt-4">
+            <h2 class="text-xl font-bold mb-4 text-blue-600">Step 1: 인터뷰 미션</h2>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <p id="interview-question" class="text-lg font-medium mb-4">질문을 불러오는 중...</p>
+                <textarea id="interview-answer" class="w-full border p-3 rounded h-32 mb-4" placeholder="답변을 입력하세요..."></textarea>
+                <button onclick="submitInterview()" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg">답변 제출</button>
+            </div>
+        </section>
+
+        <!-- 4. 퀴즈 화면 -->
+        <section id="screen-quiz" class="screen mt-4 text-center">
+            <div id="quiz-timer" class="w-full bg-gray-200 h-2 mb-4 rounded-full overflow-hidden">
+                <div id="timer-bar" class="bg-red-500 h-full transition-all duration-100" style="width: 100%"></div>
+            </div>
+            <h2 id="quiz-question" class="text-2xl font-bold mb-6">퀴즈 진행 중!</h2>
+            <div id="quiz-options" class="grid grid-cols-1 gap-4">
+                <!-- 퀴즈 버튼들이 여기에 생성됨 -->
+            </div>
+        </section>
+    </div>
+
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+    import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp76n4jKbBCf51Z7RifCKbtvGNmHK1rNE",
+        authDomain: "my-survival-c3eeb.firebaseapp.com",
+        projectId: "my-survival-c3eeb",
+        storageBucket: "my-survival-c3eeb.firebasestorage.app",
+        messagingSenderId: "364626318407",
+        appId: "1:364626318407:web:8a7a98d5e28b0d95c7cd62"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const questionPool = [
+        "요즘 가장 즐거운 일은 무엇인가요?",
+        "이번 수련회에서 가장 기대하는 것은?",
+        "나를 한 단어로 표현한다면?",
+        "최근 가장 감사했던 일은 무엇인가요?",
+        "옆 사람의 첫인상을 한 단어로 말한다면?",
+        "내가 가장 좋아하는 찬양은?",
+        "나의 MBTI는 무엇인가요?",
+        "가장 기억에 남는 여행지는?",
+        "나의 소중한 보물 1호는?",
+        "지금 가장 먹고 싶은 음식은?"
+    ];
+
+    let currentUser = JSON.parse(localStorage.getItem('connect-user'));
+    let gameState = {};
+
+    window.showScreen = (screenId) => {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        const target = document.getElementById(`screen-${screenId}`);
+        if(target) target.classList.add('active');
+    };
+
+    // 질문 배정 함수
+    function assignQuestion() {
+        console.log("질문 배정 시작...");
+        let assigned = localStorage.getItem('assigned-question');
+        if (!assigned) {
+            const randomIndex = Math.floor(Math.random() * questionPool.length);
+            assigned = questionPool[randomIndex];
+            localStorage.setItem('assigned-question', assigned);
+        }
+        const qEl = document.getElementById('interview-question');
+        if(qEl) {
+            qEl.innerText = assigned;
+            console.log("배정된 질문:", assigned);
+        } else {
+            console.error("interview-question 요소를 찾을 수 없습니다.");
+        }
+    }
+
+    // 상태 변경 처리
+    function handleStateChange(stage) {
+        console.log("상태 변경 처리 중:", stage);
+
+    // 핵심: 유저 정보가 없으면 무조건 로그인 화면만 보여줌
+    if (!currentUser) {
+        console.log("유저 정보 없음 -> 로그인 화면 고정");
+        showScreen('login');
+        return;
+    }
+
+    // 유저 정보가 있을 때만 단계별 화면 이동
+    if(stage === 'LOBBY') {
+        showScreen('lobby');
+    } else if(stage === 'INTERVIEW') {
+        showScreen('interview');
+        assignQuestion();
+    } else if(stage === 'QUIZ') {
+        showScreen('quiz');
+        renderQuiz();
+    }
+    }
+
+    async function renderQuiz() {
+        const container = document.getElementById('quiz-options');
+        const questionEl = document.getElementById('quiz-question');
+        
+        // 1. 인덱스 확인 (없으면 1번으로 기본 설정)
+        const qIndex = gameState.currentQuestionIndex || 1;
+        console.log("현재 퀴즈 번호:", qIndex);
+        
+        questionEl.innerText = "문제를 불러오는 중...";
+        container.innerHTML = "";
+
+        try {
+            // 2. Firestore에서 직접 가져오기 (import 문은 상단에 이미 있으므로 바로 사용)
+            const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+            const quizSnap = await getDoc(doc(db, "quizzes", qIndex.toString()));
+            
+            if (quizSnap.exists()) {
+                const quizData = quizSnap.data();
+                questionEl.innerText = `Q${qIndex}. ${quizData.question}`;
+                
+                quizData.options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full bg-white p-4 rounded-xl shadow border-2 border-gray-200 font-bold text-lg hover:bg-blue-50 transition";
+                    btn.innerText = opt;
+                    btn.onclick = () => submitAnswer(opt, btn, quizData.correctAnswer);
+                    container.appendChild(btn);
+                });
+            } else {
+                questionEl.innerText = `${qIndex}번 문제가 DB에 없습니다. 관리자에게 문의하세요.`;
+            }
+        } catch (e) {
+            console.error("퀴즈 로딩 에러:", e);
+            questionEl.innerText = "에러 발생: " + e.message;
+        }
+    }
+window.submitAnswer = async (selectedOption, btnElement, correctAnswer) => {
+    if(btnElement.disabled) return;
+    const buttons = document.querySelectorAll('#quiz-options button');
+    buttons.forEach(b => b.disabled = true);
+
+    if(selectedOption === correctAnswer) {
+        btnElement.classList.replace('bg-white', 'bg-green-500');
+        btnElement.classList.add('text-white');
+        
+        const now = Date.now();
+        const startTime = gameState.questionStartTime?.toDate().getTime() || now;
+        const timeBonus = Math.max(0, 30000 - (now - startTime));
+        const finalScore = 1000 + timeBonus;
+
+        await updateDoc(doc(db, "users", currentUser.id), {
+            score: increment(finalScore)
+        });
+    } else {
+        btnElement.classList.replace('bg-white', 'bg-red-500');
+        btnElement.classList.add('text-white');
+    }
+};
+
+    // [입장]
+    window.joinGame = async () => {
+        const name = document.getElementById('user-name').value;
+        const team = document.getElementById('user-team').value;
+        if(!name || !team) return alert("이름과 팀을 선택하세요!");
+
+        currentUser = { name, team, id: name + "_" + Math.floor(Math.random()*1000) };
+        localStorage.setItem('connect-user', JSON.stringify(currentUser));
+
+        await setDoc(doc(db, "users", currentUser.id), {
+            ...currentUser,
+            score: 0,
+            interviewDone: false,
+            lastUpdate: serverTimestamp()
+        });
+        showScreen('lobby');
+    };
+
+    // [인터뷰 제출]
+    window.submitInterview = async () => {
+        const answer = document.getElementById('interview-answer').value;
+        const question = document.getElementById('interview-question').innerText;
+        if(!answer) return alert("답변을 입력해주세요!");
+
+        await setDoc(doc(db, "interviews", currentUser.id), {
+            userName: currentUser.name,
+            team: currentUser.team,
+            question: question,
+            answer: answer,
+            timestamp: serverTimestamp()
+        });
+
+        await updateDoc(doc(db, "users", currentUser.id), { interviewDone: true });
+        alert("제출되었습니다! 로비에서 대기해주세요.");
+        localStorage.removeItem('assigned-question'); // 다음을 위해 초기화
+        showScreen('lobby');
+    };
+
+    // [실시간 상태 감시]
+   onSnapshot(doc(db, "gameConfig", "state"), (snapshot) => {
+    if (!snapshot.exists()) return;
+    
+    const newData = snapshot.data();
+    
+    // 단계가 바뀌거나, 퀴즈 단계에서 문제 번호가 바뀔 때만 실행
+    const stageChanged = gameState.currentStage !== newData.currentStage;
+    const questionChanged = gameState.currentQuestionIndex !== newData.currentQuestionIndex;
+    
+    gameState = newData;
+    
+    if (stageChanged || (gameState.currentStage === 'QUIZ' && questionChanged)) {
+        console.log("화면 갱신 실행:", gameState.currentStage, "Q:", gameState.currentQuestionIndex);
+        handleStateChange(gameState.currentStage);
+    }
+});
+
+    
+// [맨 아래 초기 실행 로직 수정]
+// 페이지 로드 시점에 유저가 없으면 로그인 화면을 강제로 보여줌
+if(!currentUser) {
+    showScreen('login');
+} else {
+    console.log("기존 유저 세션 발견:", currentUser.name);
+    // 유저가 있으면 현재 게임 상태에 맞는 화면으로 이동
+    if(gameState.currentStage) {
+        handleStateChange(gameState.currentStage);
+    } else {
+        showScreen('lobby');
+    }
+}
+</script>
+</body>
+</html>

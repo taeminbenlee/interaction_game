@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONNECT ADMIN - 관리자</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 꽃가루 효과 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        .team-bar { transition: width 0.5s ease-in-out; }
+        .stage-btn.active { border: 4px solid #60a5fa; background-color: #1e40af; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- 상단 헤더 -->
+        <div class="flex justify-between items-center mb-10 border-b border-gray-700 pb-5">
+            <div>
+                <h1 class="text-4xl font-black text-blue-400 italic">CONNECT GAME</h1>
+                <p class="text-gray-400">상태: <span id="current-stage-text" class="text-yellow-400 font-bold">-</span></p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="uploadBasicQuizzes()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold">기본 퀴즈 30개 세팅</button>
+                <button onclick="resetGame()" class="bg-red-900 hover:bg-red-800 text-red-100 px-4 py-2 rounded text-xs font-bold">전체 초기화</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- 왼쪽: 게임 컨트롤러 -->
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
+                <h2 class="text-xl font-bold mb-6 flex items-center">🕹️ 단계 제어</h2>
+                <div class="flex flex-col gap-3">
+                    <button id="btn-LOBBY" onclick="updateStage('LOBBY')" class="stage-btn bg-gray-700 hover:bg-blue-600 p-4 rounded-xl font-bold transition text-left">1. 로비 대기</button>
+                    <button id="btn-INTERVIEW" onclick="updateStage('INTERVIEW')" class="stage-btn bg-gray-700 hover:bg-blue-600 p-4 rounded-xl font-bold transition text-left">2. 인터뷰 시작</button>
+                    
+                    <div class="bg-gray-900 p-4 rounded-xl border border-gray-700 mt-2">
+                        <p class="text-xs text-gray-400 mb-2">인터뷰가 끝나면 실행:</p>
+                        <button onclick="generateDataQuizzes()" class="w-full bg-purple-600 hover:bg-purple-700 p-3 rounded-lg font-bold transition text-sm">
+                            ✨ 인터뷰 기반 퀴즈 생성 (31~40번)
+                        </button>
+                    </div>
+
+                    <button id="btn-QUIZ" onclick="updateStage('QUIZ')" class="stage-btn bg-gray-700 hover:bg-blue-600 p-4 rounded-xl font-bold transition text-left mt-2">3. 퀴즈 시작</button>
+                    
+                    <!-- 퀴즈 세부 제어 -->
+                    <div id="quiz-control" class="bg-gray-900 p-4 rounded-xl border border-gray-700 hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <button onclick="changeQuestion(-1)" class="bg-gray-700 p-2 rounded">◀</button>
+                            <span id="q-index" class="text-2xl font-black text-blue-400">Q 1</span>
+                            <button onclick="changeQuestion(1)" class="bg-gray-700 p-2 rounded">▶</button>
+                        </div>
+                        <p class="text-xs text-gray-500 text-center mb-4">문제를 넘기면 참가자 화면이 즉시 바뀝니다.</p>
+                    </div>
+
+                    <button id="btn-RANKING" onclick="updateStage('RANKING')" class="stage-btn bg-gray-700 hover:bg-blue-600 p-4 rounded-xl font-bold transition text-left">4. 최종 결과 발표</button>
+                </div>
+            </div>
+
+            <!-- 중앙/오른쪽: 실시간 순위 보드 -->
+            <div class="lg:col-span-2 bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-700">
+                <h2 class="text-2xl font-bold mb-8 flex items-center justify-between">
+                    🏆 실시간 팀 랭킹
+                    <span class="text-sm font-normal text-gray-400">10,000 PT 기준</span>
+                </h2>
+                
+                <div id="team-ranking-list" class="flex flex-col gap-8">
+                    <!-- 팀별 점수 바 -->
+                </div>
+                
+                <div class="mt-16 grid grid-cols-2 gap-8">
+                    <div>
+                        <h2 class="text-xl font-bold mb-4 text-yellow-500 italic">TOP 5 PLAYERS</h2>
+                        <div id="user-ranking-list" class="flex flex-col gap-2"></div>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold mb-4 text-green-500 italic">SUBMISSION</h2>
+                        <div id="interview-list" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, collection, serverTimestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCp76n4jKbBCf51Z7RifCKbtvGNmHK1rNE",
+            authDomain: "my-survival-c3eeb.firebaseapp.com",
+            projectId: "my-survival-c3eeb",
+            storageBucket: "my-survival-c3eeb.firebasestorage.app",
+            messagingSenderId: "364626318407",
+            appId: "1:364626318407:web:8a7a98d5e28b0d95c7cd62"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        window.db = db; // 전역 노출
+
+        let currentQ = 1;
+
+        // [1. 단계 변경]
+       window.updateStage = async (stage) => {
+            const updateData = {
+                currentStage: stage,
+                lastUpdate: serverTimestamp()
+            };
+
+            // 퀴즈 시작 시 1번 문제로 초기화
+            if (stage === 'QUIZ') {
+                updateData.currentQuestionIndex = 1;
+                updateData.questionStartTime = serverTimestamp();
+            }
+
+            await setDoc(doc(db, "gameConfig", "state"), updateData, { merge: true });
+            
+            if(stage === 'RANKING') confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        };
+
+        // [2. 퀴즈 번호 변경]
+        window.changeQuestion = async (delta) => {
+            currentQ += delta;
+            if(currentQ < 1) currentQ = 1;
+            await updateDoc(doc(db, "gameConfig", "state"), {
+                currentQuestionIndex: currentQ,
+                questionStartTime: serverTimestamp()
+            });
+        };
+
+        // [3. 기본 퀴즈 30개 세팅]
+        window.uploadBasicQuizzes = async () => {
+            if(!confirm("기본 퀴즈 30개를 업로드하시겠습니까? (기존 1~30번 덮어씀)")) return;
+            const basicQuizzes = [
+                { q: "성경의 첫 번째 책은?", a: ["창세기", "출애굽기", "레위기", "마태복음"], c: "창세기" },
+                { q: "예수님의 제자는 총 몇 명인가요?", a: ["10명", "11명", "12명", "13명"], c: "12명" },
+                { q: "다윗이 물맷돌로 쓰러뜨린 거인의 이름은?", a: ["사울", "골리앗", "솔로몬", "삼손"], c: "골리앗" },
+                { q: "성경에서 가장 먼저 나오는 네 복음서가 아닌 것은?", a: ["마태복음", "마가복음", "누가복음", "로마서"], c: "로마서" },
+                { q: "노아의 방주가 머물렀던 산의 이름은?", a: ["시내산", "아라랏산", "갈멜산", "변화산"], c: "아라랏산" },
+                { q: "이스라엘 백성이 이집트에서 나와 건넌 바다는?", a: ["지중해", "홍해", "사해", "갈릴리"], c: "홍해" },
+                { q: "성경 전체에서 가장 짧은 장은?", a: ["시편 117편", "시편 23편", "요한복음 1장", "창세기 1장"], c: "시편 117편" },
+                { q: "믿음의 조상이라 불리는 사람은?", a: ["이삭", "야곱", "아브라함", "요셉"], c: "아브라함" },
+                { q: "예수님이 태어나신 동네는?", a: ["나사렛", "예루살렘", "베들레헴", "여리고"], c: "베들레헴" },
+                { q: "십계명을 받은 사람은?", a: ["아론", "모세", "여호수아", "사무엘"], c: "모세" },
+                { q: "성령의 9가지 열매가 아닌 것은?", a: ["사랑", "희락", "질투", "절제"], c: "질투" },
+                { q: "예수님의 육신의 직업은 무엇이었나요?", a: ["어부", "목수", "세리", "농부"], c: "목수" },
+                { q: "사도 바울의 원래 이름은?", a: ["베드로", "사울", "디모데", "바나바"], c: "사울" },
+                { q: "하나님이 세상을 창조하실 때 첫째 날 만드신 것은?", a: ["물", "빛", "해와 달", "사람"], c: "빛" },
+                { q: "예수님이 물로 포도주를 만드신 기적의 장소는?", a: ["가나", "가버나움", "벳새다", "실로암"], c: "가나" },
+                { q: "성경의 마지막 책은?", a: ["유다서", "히브리서", "요한계시록", "말라기"], c: "요한계시록" },
+                { q: "가장 힘이 셌던 사사의 이름은?", a: ["기드온", "삼손", "입다", "드보라"], c: "삼손" },
+                { q: "예수님을 세 번 부인한 제자는?", a: ["유다", "요한", "베드로", "안드레"], c: "베드로" },
+                { q: "고래(큰 물고기) 배 속에 들어갔던 선지자는?", a: ["엘리야", "요나", "이사야", "다니엘"], c: "요나" },
+                { q: "사자 굴 속에 던져졌으나 살아남은 사람은?", a: ["다니엘", "에스더", "느헤미야", "에스겔"], c: "다니엘" },
+                { q: "죽은 지 나흘 만에 예수님이 살리신 사람은?", a: ["야이로의 딸", "나사로", "도마", "바디매오"], c: "나사로" },
+                { q: "성경에서 가장 나이가 많았던 사람은?", a: ["아담", "므두셀라", "노아", "셋"], c: "므두셀라" },
+                { q: "예수님이 산 위에서 가르치신 팔복이 담긴 설교는?", a: ["산상수훈", "평지설교", "다락방강화", "고별설교"], c: "산상수훈" },
+                { q: "이스라엘의 첫 번째 왕은?", a: ["다윗", "사울", "솔로몬", "르호보암"], c: "사울" },
+                { q: "지혜의 왕이라 불리는 사람은?", a: ["히스기야", "요시야", "솔로몬", "아사"], c: "솔로몬" },
+                { q: "예수님을 은 30에 팔아넘긴 제자는?", a: ["가룟 유다", "빌립", "바돌로매", "마태"], c: "가룟 유다" },
+                { q: "하나님이 십계명을 주신 산의 이름은?", a: ["호렙산", "시내산", "감람산", "헤르몬산"], c: "시내산" },
+                { q: "성경에서 '사랑장'이라 불리는 곳은?", a: ["고린도전서 13장", "로마서 8장", "시편 23편", "마태복음 5장"], c: "고린도전서 13장" },
+                { q: "예수님이 십자가에 못 박히신 언덕의 이름은?", a: ["갈멜", "골고다", "시온", "에발"], c: "골고다" },
+                { q: "성경에서 '믿음장'이라 불리는 곳은?", a: ["히브리서 11장", "야고보서 2장", "에베소서 2장", "갈라디아서 5장"], c: "히브리서 11장" }
+            ];
+
+            const batch = writeBatch(db);
+            basicQuizzes.forEach((q, i) => {
+                batch.set(doc(db, "quizzes", (i+1).toString()), {
+                    question: q.q, options: q.a, correctAnswer: q.c, type: 'NORMAL'
+                });
+            });
+            await batch.commit();
+            alert("기본 퀴즈 30개 업로드 완료!");
+        };
+
+        // [4. 인터뷰 기반 퀴즈 생성]
+        window.generateDataQuizzes = async () => {
+          const { getDocs, collection, writeBatch, doc } = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+          
+          try {
+              const querySnapshot = await getDocs(collection(db, "interviews"));
+              const allInterviews = [];
+              querySnapshot.forEach(doc => allInterviews.push(doc.data()));
+
+              // 테스트를 위해 최소 인원 제한을 1명으로 낮춤
+              if (allInterviews.length < 1) return alert("답변이 하나도 없습니다!");
+
+              const batch = writeBatch(db);
+              
+              // 답변이 10개보다 적으면 있는 만큼만 생성
+              const quizCount = Math.min(allInterviews.length, 10);
+              const shuffled = allInterviews.sort(() => 0.5 - Math.random()).slice(0, quizCount);
+
+              shuffled.forEach((data, index) => {
+                  const quizId = (31 + index).toString();
+                  
+                  // 오답 보기 만들기 (본인 제외한 사람들)
+                  let wrongOptions = allInterviews
+                      .filter(u => u.userName !== data.userName)
+                      .map(u => u.userName);
+                  
+                  // 만약 사람이 부족해서 오답 보기가 3개가 안 되면 가짜 이름 추가
+                  const fakeNames = ["베드로", "바울", "요한", "마리아", "루디아"];
+                  let i = 0;
+                  while(wrongOptions.length < 3) {
+                      wrongOptions.push(fakeNames[i % fakeNames.length] + (i > 4 ? i : ""));
+                      i++;
+                  }
+                  
+                  // 최종 4개 보기 섞기
+                  const options = [data.userName, ...wrongOptions.slice(0, 3)].sort(() => 0.5 - Math.random());
+
+                  batch.set(doc(db, "quizzes", quizId), {
+                      question: `${data.team}조에서 "${data.answer}"라고 답한 사람은?`,
+                      options: options,
+                      correctAnswer: data.userName,
+                      type: 'DATA_DRIVEN'
+                  });
+              });
+
+              await batch.commit();
+              alert(`${quizCount}개의 데이터 기반 퀴즈가 생성되었습니다! (31번~ )`);
+          } catch (e) {
+              console.error(e);
+              alert("퀴즈 생성 실패: " + e.message);
+          }
+      };
+
+        // [5. 실시간 데이터 감시]
+        onSnapshot(doc(db, "gameConfig", "state"), (snapshot) => {
+            const data = snapshot.data();
+            if(!data) return;
+            document.getElementById('current-stage-text').innerText = data.currentStage;
+            document.getElementById('q-index').innerText = "Q " + (data.currentQuestionIndex || 1);
+            currentQ = data.currentQuestionIndex || 1;
+
+            // 버튼 활성화 표시
+            document.querySelectorAll('.stage-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById('btn-' + data.currentStage);
+            if(activeBtn) activeBtn.classList.add('active');
+
+            if(data.currentStage === 'QUIZ') document.getElementById('quiz-control').classList.remove('hidden');
+            else document.getElementById('quiz-control').classList.add('hidden');
+        });
+
+        onSnapshot(collection(db, "users"), (snapshot) => {
+            const users = [];
+            const teamScores = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+            snapshot.forEach(doc => {
+                const u = doc.data();
+                users.push(u);
+                if(u.team) teamScores[u.team] += (u.score || 0);
+            });
+
+            // 팀 랭킹 렌더링
+            const teamList = document.getElementById('team-ranking-list');
+            teamList.innerHTML = Object.keys(teamScores).sort((a,b) => teamScores[b] - teamScores[a]).map(teamId => {
+                const score = teamScores[teamId];
+                const width = Math.min(100, (score / 10000) * 100);
+                return `
+                    <div>
+                        <div class="flex justify-between font-bold text-xl mb-2">
+                            <span>${teamId}조</span>
+                            <span class="text-blue-400">${score.toLocaleString()} PT</span>
+                        </div>
+                        <div class="w-full bg-gray-900 h-8 rounded-full border border-gray-700 overflow-hidden">
+                            <div class="team-bar bg-gradient-to-r from-blue-600 to-cyan-400 h-full" style="width: ${width}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 개인 TOP 5
+            users.sort((a,b) => (b.score || 0) - (a.score || 0));
+            document.getElementById('user-ranking-list').innerHTML = users.slice(0, 5).map((u, i) => `
+                <div class="flex justify-between bg-gray-900 p-3 rounded-lg border border-gray-700">
+                    <span>${i+1}. ${u.name}</span>
+                    <span class="text-yellow-400 font-bold">${(u.score || 0).toLocaleString()}</span>
+                </div>
+            `).join('');
+
+            // 제출 현황
+            document.getElementById('interview-list').innerHTML = users.map(u => `
+                <div class="px-3 py-1 rounded-full text-xs ${u.interviewDone ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}">
+                    ${u.name}
+                </div>
+            `).join('');
+        });
+
+        window.resetGame = async () => {
+            if(!confirm("정말 초기화하시겠습니까?")) return;
+            // 실제로는 users 컬렉션도 지워야 하지만, 여기서는 상태만 초기화
+            await setDoc(doc(db, "gameConfig", "state"), {
+                currentStage: 'LOBBY', currentQuestionIndex: 1
+            });
+            alert("상태가 초기화되었습니다.");
+        };
+    </script>
+</body>
+</html>
