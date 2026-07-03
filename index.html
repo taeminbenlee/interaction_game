@@ -4,269 +4,521 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONNECT - 참가자</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .screen { display: none; }
-        .active { display: block; }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>.screen { display: none; } .active { display: block; }</style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-
     <div id="app" class="max-w-md mx-auto p-4">
-        <!-- 1. 로그인/입장 화면 -->
+        <!-- 로그인 -->
         <section id="screen-login" class="screen active mt-10">
-            <h1 class="text-3xl font-bold text-center mb-8 text-blue-600">CONNECT</h1>
-            <div class="bg-white p-6 rounded-xl shadow-md">
-                <input id="user-name" type="text" placeholder="이름을 입력하세요" class="w-full border p-3 rounded mb-4">
-                <select id="user-team" class="w-full border p-3 rounded mb-6">
-                    <option value="">팀 선택</option>
-                    <option value="1">1조</option>
-                    <option value="2">2조</option>
-                    <option value="3">3조</option>
-                    <option value="4">4조</option>
-                    <option value="5">5조</option>
+            <h1 class="text-4xl font-black text-center mb-8 text-blue-600 italic">CONNECT</h1>
+            <div class="bg-white p-6 rounded-2xl shadow-xl">
+                <input id="user-name" type="text" placeholder="이름" class="w-full border-2 p-4 rounded-xl mb-4 text-lg">
+                <select id="user-team" class="w-full border-2 p-4 rounded-xl mb-6 text-lg">
+                    <option value="">조 선택</option>
+                    <option value="1">1조</option><option value="2">2조</option><option value="3">3조</option><option value="4">4조</option><option value="5">5조</option>
                 </select>
-                <button onclick="joinGame()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">게임 입장</button>
+                <button onclick="joinGame()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl text-xl shadow-lg">게임 입장</button>
             </div>
         </section>
 
-        <!-- 2. 로비 화면 (대기) -->
+        <!-- 로비 -->
         <section id="screen-lobby" class="screen mt-10 text-center">
-            <div class="animate-bounce text-6xl mb-4">🎮</div>
-            <h2 class="text-2xl font-bold mb-2">로비 대기 중...</h2>
-            <p id="lobby-msg" class="text-gray-600">팀원들이 모일 때까지 잠시만 기다려주세요.</p>
+            <div class="animate-bounce text-8xl mb-6">🎮</div>
+            <h2 class="text-3xl font-black mb-4">대기 중...</h2>
+            <p class="text-gray-500">관리자가 게임을 시작할 때까지 기다려주세요.</p>
         </section>
 
-        <!-- 3. 인터뷰 화면 (질문 답변) -->
+        <!-- 인터뷰 (5문항) -->
         <section id="screen-interview" class="screen mt-4">
-            <h2 class="text-xl font-bold mb-4 text-blue-600">Step 1: 인터뷰 미션</h2>
-            <div class="bg-white p-6 rounded-xl shadow-md">
-                <p id="interview-question" class="text-lg font-medium mb-4">질문을 불러오는 중...</p>
-                <textarea id="interview-answer" class="w-full border p-3 rounded h-32 mb-4" placeholder="답변을 입력하세요..."></textarea>
-                <button onclick="submitInterview()" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg">답변 제출</button>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-blue-600 italic">INTERVIEW</h2>
+                <span id="interview-step" class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-bold">1/5</span>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                <p id="interview-question" class="text-lg font-bold mb-4 min-h-[60px]"></p>
+                <textarea id="interview-answer" class="w-full border-2 p-4 rounded-xl h-32 mb-4" placeholder="답변을 입력하세요..."></textarea>
+                <button onclick="submitInterview()" class="w-full bg-green-500 text-white font-bold py-4 rounded-xl text-lg">다음 답변 제출</button>
             </div>
         </section>
 
-        <!-- 4. 퀴즈 화면 -->
-        <section id="screen-quiz" class="screen mt-4 text-center">
-            <div id="quiz-timer" class="w-full bg-gray-200 h-2 mb-4 rounded-full overflow-hidden">
-                <div id="timer-bar" class="bg-red-500 h-full transition-all duration-100" style="width: 100%"></div>
+        <!-- 팀 미션 (협동 미션) -->
+        <section id="screen-mission" class="screen mt-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-blue-600 italic">TEAM MISSION</h2>
+                <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-bold">협동 미션</span>
             </div>
-            <h2 id="quiz-question" class="text-2xl font-bold mb-6">퀴즈 진행 중!</h2>
-            <div id="quiz-options" class="grid grid-cols-1 gap-4">
-                <!-- 퀴즈 버튼들이 여기에 생성됨 -->
+            <div class="bg-white p-6 rounded-2xl shadow-lg border-4 border-blue-500">
+                <p class="text-lg font-bold mb-4 min-h-[60px] text-gray-800 text-center flex flex-col justify-center items-center gap-1">
+                    <span>🤝 조원들과 대화하여</span>
+                    <span>우리 조의 공통점 3개를 찾아 적으세요!</span>
+                </p>
+                <textarea id="mission-answer" class="w-full border-2 p-4 rounded-xl h-32 mb-4 focus:border-blue-500 focus:outline-none" placeholder="1. ...&#10;2. ...&#10;3. ..."></textarea>
+                <button onclick="submitTeamMission()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl text-lg shadow-md transition duration-200">미션 제출</button>
+            </div>
+        </section>
+
+        <!-- 퀴즈 (3초 타이머) -->
+        <section id="screen-quiz" class="screen mt-4 text-center">
+            <div class="flex justify-between items-center mb-2">
+                <span id="quiz-timer-text" class="text-3xl font-black text-red-500">03</span>
+                <span id="quiz-progress" class="text-sm font-bold text-gray-400">Q 1/50</span>
+            </div>
+            <div class="w-full bg-gray-200 h-3 mb-6 rounded-full overflow-hidden">
+                <div id="timer-bar" class="bg-red-500 h-full w-full transition-all linear"></div>
+            </div>
+            <h2 id="quiz-question" class="text-xl font-bold mb-8 min-h-[80px]"></h2>
+            <div id="quiz-options" class="grid grid-cols-1 gap-4"></div>
+            <p id="quiz-timeout-msg" class="hidden text-red-500 font-bold mt-6 animate-pulse text-lg">
+                ⚠️ 시간 종료! 다른 조의 결과를 확인하세요.
+            </p>
+        </section>
+
+        <!-- 랭킹 화면 -->
+        <section id="screen-ranking" class="screen mt-4">
+            <h2 class="text-3xl font-black text-center mb-8 text-yellow-500 italic underline">RANKING</h2>
+            <div class="bg-blue-600 text-white p-6 rounded-3xl shadow-xl mb-6 text-center">
+                <p class="text-sm opacity-80 mb-1">나의 현재 점수</p>
+                <p id="my-score-display" class="text-5xl font-black">0 PT</p>
+            </div>
+            <div class="space-y-4">
+                <div class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-blue-500">
+                    <h3 class="text-gray-400 text-xs font-bold mb-1">우리 팀 현황</h3>
+                    <div id="team-rank-display" class="text-xl font-black text-gray-800 italic mb-2"></div>
+                    <div id="team-ace-display" class="text-sm font-bold text-gray-600"></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-yellow-500">
+                    <h3 class="text-gray-400 text-xs font-bold mb-1">전체 TOP 3</h3>
+                    <div id="top-players-display" class="text-sm font-bold text-gray-700 space-y-1"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. 최종 우승 결과 화면 -->
+        <section id="screen-final" class="screen mt-10 text-center">
+            <div class="py-10">
+                <h1 class="text-4xl font-black text-yellow-500 mb-4 animate-bounce">CONGRATULATIONS!</h1>
+                <div class="bg-white p-8 rounded-3xl shadow-2xl border-4 border-yellow-400 relative overflow-hidden">
+                    <div class="text-6xl mb-4">🏆</div>
+                    <h2 class="text-2xl font-bold text-gray-700 mb-2">최종 우승팀</h2>
+                    <div id="final-winner-team" class="text-6xl font-black text-blue-600 mb-4">1조</div>
+                    <p id="final-winner-score" class="text-xl text-gray-500 font-bold">0 PT</p>
+                </div>
+                
+                <div class="mt-10 bg-blue-600 text-white p-6 rounded-2xl">
+                    <p class="text-lg">나의 최종 점수</p>
+                    <p id="final-my-score" class="text-3xl font-bold">0 PT</p>
+                </div>
+                
+                <p class="mt-8 text-gray-400 italic">모두 수고하셨습니다! 주님 안에서 하나되는 시간!</p>
             </div>
         </section>
     </div>
 
     <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-    import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, getDocs, collection, query, orderBy, limit, increment, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCp76n4jKbBCf51Z7RifCKbtvGNmHK1rNE",
-        authDomain: "my-survival-c3eeb.firebaseapp.com",
-        projectId: "my-survival-c3eeb",
-        storageBucket: "my-survival-c3eeb.firebasestorage.app",
-        messagingSenderId: "364626318407",
-        appId: "1:364626318407:web:8a7a98d5e28b0d95c7cd62"
-    };
+        const firebaseConfig = {
+            apiKey: "AIzaSyCp76n4jKbBCf51Z7RifCKbtvGNmHK1rNE",
+            authDomain: "my-survival-c3eeb.firebaseapp.com",
+            projectId: "my-survival-c3eeb",
+            storageBucket: "my-survival-c3eeb.firebasestorage.app",
+            messagingSenderId: "364626318407",
+            appId: "1:364626318407:web:8a7a98d5e28b0d95c7cd62"
+        };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-    const questionPool = [
-        "요즘 가장 즐거운 일은 무엇인가요?",
-        "이번 수련회에서 가장 기대하는 것은?",
-        "나를 한 단어로 표현한다면?",
-        "최근 가장 감사했던 일은 무엇인가요?",
-        "옆 사람의 첫인상을 한 단어로 말한다면?",
-        "내가 가장 좋아하는 찬양은?",
-        "나의 MBTI는 무엇인가요?",
-        "가장 기억에 남는 여행지는?",
-        "나의 소중한 보물 1호는?",
-        "지금 가장 먹고 싶은 음식은?"
-    ];
+        const questionPool = ["가장 즐거운 일은?", "수련회 기대하는 점?", "나를 한 단어로?", "최근 감사한 일?", "옆 사람 첫인상은?", "좋아하는 찬양?", "나의 MBTI?", "가장 가고 싶은 여행지?", "나의 보물 1호?", "지금 먹고 싶은 것?"];
+        let currentUser = JSON.parse(localStorage.getItem('connect-user'));
+        let gameState = {};
+        let interviewCount = 0;
+        let timerInterval;
+        let activeQuestions = [];
 
-    let currentUser = JSON.parse(localStorage.getItem('connect-user'));
-    let gameState = {};
+        window.showScreen = (id) => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(`screen-${id}`).classList.add('active'); };
 
-    window.showScreen = (screenId) => {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        const target = document.getElementById(`screen-${screenId}`);
-        if(target) target.classList.add('active');
-    };
-
-    // 질문 배정 함수
-    function assignQuestion() {
-        console.log("질문 배정 시작...");
-        let assigned = localStorage.getItem('assigned-question');
-        if (!assigned) {
-            const randomIndex = Math.floor(Math.random() * questionPool.length);
-            assigned = questionPool[randomIndex];
-            localStorage.setItem('assigned-question', assigned);
-        }
-        const qEl = document.getElementById('interview-question');
-        if(qEl) {
-            qEl.innerText = assigned;
-            console.log("배정된 질문:", assigned);
-        } else {
-            console.error("interview-question 요소를 찾을 수 없습니다.");
-        }
-    }
-
-    // 상태 변경 처리
-    function handleStateChange(stage) {
-        console.log("상태 변경 처리 중:", stage);
-
-    // 핵심: 유저 정보가 없으면 무조건 로그인 화면만 보여줌
-    if (!currentUser) {
-        console.log("유저 정보 없음 -> 로그인 화면 고정");
-        showScreen('login');
-        return;
-    }
-
-    // 유저 정보가 있을 때만 단계별 화면 이동
-    if(stage === 'LOBBY') {
-        showScreen('lobby');
-    } else if(stage === 'INTERVIEW') {
-        showScreen('interview');
-        assignQuestion();
-    } else if(stage === 'QUIZ') {
-        showScreen('quiz');
-        renderQuiz();
-    }
-    }
-
-    async function renderQuiz() {
-        const container = document.getElementById('quiz-options');
-        const questionEl = document.getElementById('quiz-question');
-        
-        // 1. 인덱스 확인 (없으면 1번으로 기본 설정)
-        const qIndex = gameState.currentQuestionIndex || 1;
-        console.log("현재 퀴즈 번호:", qIndex);
-        
-        questionEl.innerText = "문제를 불러오는 중...";
-        container.innerHTML = "";
-
-        try {
-            // 2. Firestore에서 직접 가져오기 (import 문은 상단에 이미 있으므로 바로 사용)
-            const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
-            const quizSnap = await getDoc(doc(db, "quizzes", qIndex.toString()));
+        window.submitTeamMission = async () => {
+            const content = document.getElementById('mission-answer').value.trim();
+            if(!content) return alert("공통점을 입력해주세요!");
             
-            if (quizSnap.exists()) {
-                const quizData = quizSnap.data();
-                questionEl.innerText = `Q${qIndex}. ${quizData.question}`;
-                
-                quizData.options.forEach(opt => {
-                    const btn = document.createElement('button');
-                    btn.className = "w-full bg-white p-4 rounded-xl shadow border-2 border-gray-200 font-bold text-lg hover:bg-blue-50 transition";
-                    btn.innerText = opt;
-                    btn.onclick = () => submitAnswer(opt, btn, quizData.correctAnswer);
-                    container.appendChild(btn);
+            try {
+                if(!currentUser || !currentUser.team) {
+                    return alert("사용자 정보 또는 조 정보가 없습니다. 다시 로그인해주세요.");
+                }
+
+                await addDoc(collection(db, "missions"), {
+                    teamId: currentUser.team,
+                    content: content,
+                    timestamp: serverTimestamp(),
+                    approved: false
                 });
-            } else {
-                questionEl.innerText = `${qIndex}번 문제가 DB에 없습니다. 관리자에게 문의하세요.`;
+
+                alert("미션이 성공적으로 제출되었습니다!");
+                document.getElementById('mission-answer').value = "";
+                showScreen('lobby');
+            } catch (error) {
+                console.error("미션 제출 중 오류 발생:", error);
+                alert("제출에 실패했습니다. 다시 시도해주세요.");
             }
-        } catch (e) {
-            console.error("퀴즈 로딩 에러:", e);
-            questionEl.innerText = "에러 발생: " + e.message;
+        };
+
+        window.joinGame = async () => {
+            const name = document.getElementById('user-name').value;
+            const team = document.getElementById('user-team').value;
+            if(!name || !team) return alert("입력해주세요!");
+            currentUser = { name, team, id: name + "_" + Math.floor(Math.random()*1000) };
+            localStorage.setItem('connect-user', JSON.stringify(currentUser));
+            await setDoc(doc(db, "users", currentUser.id), { ...currentUser, score: 0, interviewDone: false });
+            showScreen('lobby');
+        };
+
+        window.submitInterview = async () => {
+            const ans = document.getElementById('interview-answer').value.trim();
+            const q = document.getElementById('interview-question').innerText;
+            if(!ans) return alert("답변을 써주세요!");
+            
+            try {
+                await setDoc(doc(db, "interviews", currentUser.id + "_" + interviewCount), { userName: currentUser.name, team: currentUser.team, question: q, answer: ans });
+                interviewCount++;
+                if(interviewCount >= 5) {
+                    // updateDoc은 가끔 무효 유저나 에러 시 중단되므로 setDoc merge 옵션을 사용하여 완결성 보장
+                    await setDoc(doc(db, "users", currentUser.id), { interviewDone: true }, { merge: true });
+                    alert("모든 인터뷰 완료!"); 
+                    showScreen('lobby');
+                } else {
+                    document.getElementById('interview-answer').value = "";
+                    loadInterview();
+                }
+            } catch (error) {
+                console.error("인터뷰 제출 오류:", error);
+                alert("답변 제출에 실패했습니다. 다시 시도해 주세요: " + error.message);
+            }
+        };
+
+        function loadInterview() {
+            document.getElementById('interview-step').innerText = `${interviewCount + 1}/5`;
+            document.getElementById('interview-question').innerText = activeQuestions[interviewCount] || "질문이 없습니다.";
         }
-    }
-window.submitAnswer = async (selectedOption, btnElement, correctAnswer) => {
-    if(btnElement.disabled) return;
-    const buttons = document.querySelectorAll('#quiz-options button');
-    buttons.forEach(b => b.disabled = true);
 
-    if(selectedOption === correctAnswer) {
-        btnElement.classList.replace('bg-white', 'bg-green-500');
-        btnElement.classList.add('text-white');
-        
-        const now = Date.now();
-        const startTime = gameState.questionStartTime?.toDate().getTime() || now;
-        const timeBonus = Math.max(0, 30000 - (now - startTime));
-        const finalScore = 1000 + timeBonus;
+        async function renderQuiz() {
+            // 새 퀴즈 렌더링 시 시간 종료 메시지 숨김
+            document.getElementById('quiz-timeout-msg').classList.add('hidden');
+            const qIdx = gameState.currentQuestionIndex;
+            if (!qIdx) {
+                document.getElementById('quiz-question').innerText = "⚠️ 문제를 불러오는 중...";
+                return;
+            }
+            try {
+                const snap = await getDoc(doc(db, "quizzes", qIdx.toString()));
+                if(snap.exists()) {
+                    const data = snap.data();
+                    document.getElementById('quiz-question').innerText = data.question;
+                    document.getElementById('quiz-progress').innerText = `Q ${qIdx}/50`;
+                    const container = document.getElementById('quiz-options');
+                    container.innerHTML = "";
+                    data.options.forEach(opt => {
+                        const btn = document.createElement('button');
+                        btn.className = "w-full bg-white p-5 rounded-2xl shadow-md font-bold text-lg border-2 border-transparent active:border-blue-500";
+                        btn.innerText = opt;
+                        btn.onclick = () => submitAnswer(opt, btn, data.correctAnswer);
+                        container.appendChild(btn);
+                    });
+                    // 시간 초과 시 하이라이트를 위해 정답을 전역 변수에 기록
+                    window.currentCorrectAnswer = data.correctAnswer;
+                } else {
+                    document.getElementById('quiz-question').innerText = `⚠️ 퀴즈 데이터 없음 (Q ${qIdx})`;
+                    document.getElementById('quiz-options').innerHTML = `<p class="text-gray-500 italic py-4">데이터베이스에 ${qIdx}번 퀴즈가 등록되어 있지 않습니다.<br>관리자 화면에서 '1. 전체 퀴즈 세팅'을 실행했는지 확인해 주세요.</p>`;
+                }
+            } catch (error) {
+                console.error("퀴즈 로드 중 에러 발생:", error);
+                document.getElementById('quiz-question').innerText = "⚠️ 퀴즈를 가져오지 못했습니다.";
+                document.getElementById('quiz-options').innerHTML = `<p class="text-red-500 italic py-4">오류 내용: ${error.message}</p>`;
+            }
+        }
 
-        await updateDoc(doc(db, "users", currentUser.id), {
-            score: increment(finalScore)
+        window.submitAnswer = async (opt, btn, correct) => {
+            if(btn.disabled) return;
+                
+                // 모든 버튼을 비활성화하고, 선택에 맞춰 색칠
+                document.querySelectorAll('#quiz-options button').forEach(b => {
+                    b.disabled = true;
+                    b.classList.remove('bg-white'); // 기존 하얀 배경 제거
+                    
+                    if (b.innerText === correct) {
+                        // 정답 보기는 무조건 초록색
+                        b.classList.add('bg-green-500', 'text-white');
+                    } else if (b === btn) {
+                        // 내가 클릭했는데 틀린 보기는 빨간색
+                        b.classList.add('bg-red-500', 'text-white');
+                    } else {
+                        // 선택받지 못한 오답 보기는 투명도 낮춤
+                        b.classList.add('bg-gray-200', 'text-gray-400', 'opacity-50');
+                    }
+                });
+
+                const now = Date.now();
+                const timerEnd = gameState.timerEnd || (now + 3000);
+                
+                if(opt === correct) {
+                    confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
+
+                    // 점수 계산 (NaN 방지)
+                    const remainMs = Math.max(0, timerEnd - now);
+                    const finalScore = 1000 + Math.floor(remainMs); // 기본 1000점 + 남은 밀리초 보너스
+
+                    await updateDoc(doc(db, "users", currentUser.id), {
+                        score: increment(finalScore)
+                    });
+                }
+        };
+
+        function startTimer(endTime) {
+            document.getElementById('quiz-timeout-msg').classList.add('hidden');
+            clearInterval(timerInterval);
+                const bar = document.getElementById('timer-bar');
+                const text = document.getElementById('quiz-timer-text');
+                
+                timerInterval = setInterval(() => {
+                    const now = Date.now();
+                    const remain = Math.max(0, (endTime - now) / 1000);
+                    
+                    text.innerText = Math.ceil(remain).toString().padStart(2, '0');
+                    bar.style.width = `${(remain / 3) * 100}%`;
+ 
+                    if(remain <= 0) { 
+                        clearInterval(timerInterval); 
+                        text.innerText = "00";
+                        text.classList.add('animate-ping'); // 시간 종료 시 깜빡임
+                        document.getElementById('quiz-timeout-msg').classList.remove('hidden');
+                        
+                        // 시간 종료 시, 아무것도 고르지 못한 유저들에게 정답을 하이라이트해서 공개
+                        document.querySelectorAll('#quiz-options button').forEach(b => {
+                            b.disabled = true;
+                            b.classList.remove('bg-white');
+                            if (b.innerText === window.currentCorrectAnswer) {
+                                b.classList.add('bg-green-500', 'text-white');
+                            } else {
+                                b.classList.add('bg-gray-200', 'text-gray-400', 'opacity-50');
+                            }
+                        });
+                    }
+                }, 50);
+        }
+
+        async function updateRankingUI() {
+             const { getDocs, collection, query, orderBy, limit } = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+    
+                // 1. 모든 유저 데이터를 가져와서 팀 점수 계산
+                const allUsersSnap = await getDocs(collection(db, "users"));
+                let teamTotalScore = 0;
+                const users = [];
+                
+                allUsersSnap.forEach(d => {
+                    const data = d.data();
+                    const score = Number(data.score) || 0; // NaN 방지
+                    users.push({ ...data, score });
+                    if(data.team === currentUser.team) teamTotalScore += score;
+                });
+
+                // 2. 내 점수 표시
+                const myData = users.find(u => u.id === currentUser.id);
+                document.getElementById('my-score-display').innerText = (myData?.score || 0).toLocaleString() + " PT";
+ 
+                // 2.5 우리 팀 에이스 계산
+                const teamUsers = users.filter(u => u.team === currentUser.team);
+                let aceName = "없음";
+                let aceScore = 0;
+                if (teamUsers.length > 0) {
+                    const ace = teamUsers.reduce((prev, current) => (Number(prev.score) || 0) > (Number(current.score) || 0) ? prev : current);
+                    aceName = ace.name;
+                    aceScore = Number(ace.score) || 0;
+                }
+
+                // 3. 우리 팀 점수 표시
+                document.getElementById('team-rank-display').innerText = `${currentUser.team}조 합계: ${teamTotalScore.toLocaleString()} PT`;
+                document.getElementById('team-ace-display').innerHTML = `👑 우리 팀 에이스: <span class="text-blue-600">${aceName}</span> (${aceScore.toLocaleString()} PT)`;
+ 
+                // 4. 전체 TOP 3 표시 (NaN 방지)
+                const top3 = users.sort((a, b) => b.score - a.score).slice(0, 3);
+                let topHtml = "";
+                top3.forEach((u, i) => {
+                    topHtml += `<div class="flex justify-between"><span>${i+1}위: ${u.name}</span><span>${u.score.toLocaleString()} PT</span></div>`;
+                });
+                document.getElementById('top-players-display').innerHTML = topHtml;
+        }
+
+        let lastStage = null;
+        let lastShowRanking = null;
+
+        onSnapshot(doc(db, "gameConfig", "state"), async (s) => {
+            if(!s.exists()) return;
+            gameState = s.data();
+
+            // 1. 유저 세션 검증 (DB에 유저가 없으면 로그아웃)
+            if (currentUser) {
+                const userSnap = await getDoc(doc(db, "users", currentUser.id));
+                if (!userSnap.exists()) {
+                    localStorage.clear();
+                    location.reload();
+                    return;
+                }
+            } else {
+                showScreen('login');
+                return;
+            }
+
+            // 2. 단계별 화면 전환 로직
+            const stage = gameState.currentStage;
+            
+            // 최종 우승 발표 단계
+            if (stage === 'RANKING') {
+                showScreen('final');
+                renderFinalResult(); // 아래에 함수 정의 필요
+            } 
+            // 퀴즈 단계
+            else if (stage === 'QUIZ') {
+                if (gameState.showRanking) { 
+                    showScreen('ranking'); 
+                    updateRankingUI(); 
+                } else { 
+                    showScreen('quiz'); 
+                    renderQuiz(); 
+                    startTimer(gameState.timerEnd); 
+                }
+            } 
+            // 인터뷰 단계
+            else if (stage === 'INTERVIEW') {
+                showScreen('interview');
+                if (lastStage !== 'INTERVIEW') { // 인터뷰 진입 시에만 초기화
+                    interviewCount = 0;
+                    activeQuestions = [...questionPool].sort(() => 0.5 - Math.random()).slice(0, 5);
+                    loadInterview();
+                }
+            } 
+            // 팀 미션 단계
+            else if (stage === 'MISSION') {
+                showScreen('mission');
+            } 
+            // 로비 등 기타
+            else {
+                showScreen(stage.toLowerCase());
+            }
+
+            lastStage = stage;
         });
-    } else {
-        btnElement.classList.replace('bg-white', 'bg-red-500');
-        btnElement.classList.add('text-white');
-    }
-};
 
-    // [입장]
-    window.joinGame = async () => {
-        const name = document.getElementById('user-name').value;
-        const team = document.getElementById('user-team').value;
-        if(!name || !team) return alert("이름과 팀을 선택하세요!");
+        // [추가] 최종 결과 연출 함수
+        async function renderFinalResult() {
+            // 우승팀 정보 표시 (관리자가 계산해서 넣어준 값)
+            document.getElementById('final-winner-team').innerText = `${gameState.winnerTeam || "-"}조`;
+            document.getElementById('final-winner-score').innerText = `${(gameState.winnerScore || 0).toLocaleString()} PT`;
+            
+            // 내 최종 점수 가져오기
+            const userSnap = await getDoc(doc(db, "users", currentUser.id));
+            if(userSnap.exists()) {
+                document.getElementById('final-my-score').innerText = `${(userSnap.data().score || 0).toLocaleString()} PT`;
+            }
 
-        currentUser = { name, team, id: name + "_" + Math.floor(Math.random()*1000) };
-        localStorage.setItem('connect-user', JSON.stringify(currentUser));
+            // 꽃가루 팡팡 연출 (5초 동안)
+            var duration = 5 * 1000;
+            var end = Date.now() + duration;
+            (function frame() {
+                confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#ffd700', '#ffffff', '#0000ff'] });
+                confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#ffd700', '#ffffff', '#0000ff'] });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+        }
+        // onSnapshot(doc(db, "gameConfig", "state"), async (s) => {
+        //     if(!s.exists()) return;
+        //         gameState = s.data();
 
-        await setDoc(doc(db, "users", currentUser.id), {
-            ...currentUser,
-            score: 0,
-            interviewDone: false,
-            lastUpdate: serverTimestamp()
-        });
-        showScreen('lobby');
-    };
+        //         // [검증] 로컬스토리지에는 유저 정보가 있으나, 실제 DB에는 존재하지 않는 경우(초기화 등) 강제 로그아웃 처리
+        //         if (currentUser) {
+        //             try {
+        //                 const userSnap = await getDoc(doc(db, "users", currentUser.id));
+        //                 if (!userSnap.exists()) {
+        //                     localStorage.removeItem('connect-user');
+        //                     currentUser = null;
+        //                     alert("게임이 초기화되었습니다. 다시 가입하여 입장해 주세요.");
+        //                     location.reload();
+        //                     return;
+        //                 }
+        //             } catch (e) {
+        //                 console.error("유저 검증 중 오류:", e);
+        //             }
+        //         }
 
-    // [인터뷰 제출]
-    window.submitInterview = async () => {
-        const answer = document.getElementById('interview-answer').value;
-        const question = document.getElementById('interview-question').innerText;
-        if(!answer) return alert("답변을 입력해주세요!");
+        //         if(!currentUser) { showScreen('login'); return; }
 
-        await setDoc(doc(db, "interviews", currentUser.id), {
-            userName: currentUser.name,
-            team: currentUser.team,
-            question: question,
-            answer: answer,
-            timestamp: serverTimestamp()
-        });
+        //         // 단계가 실제로 변경되었을 때만 화면 갱신 및 셋업 수행 (질문 리셋 방지)
+        //         if (lastStage !== gameState.currentStage) {
+        //             lastStage = gameState.currentStage;
+        //             lastShowRanking = gameState.showRanking;
 
-        await updateDoc(doc(db, "users", currentUser.id), { interviewDone: true });
-        alert("제출되었습니다! 로비에서 대기해주세요.");
-        localStorage.removeItem('assigned-question'); // 다음을 위해 초기화
-        showScreen('lobby');
-    };
+        //             if(gameState.currentStage === 'QUIZ') {
+        //                 if(gameState.showRanking) { 
+        //                     showScreen('ranking'); 
+        //                     updateRankingUI(); 
+        //                 } else { 
+        //                     showScreen('quiz'); 
+        //                     renderQuiz(); 
+        //                     startTimer(gameState.timerEnd); 
+        //                 }
+        //             } else if(gameState.currentStage === 'INTERVIEW') {
+        //                 showScreen('interview'); 
+        //                 interviewCount = 0; // 인터뷰 단계 진입 시 카운트 초기화
+        //                 // 질문 중복 출제를 원천 차단하기 위해 10개 풀에서 무작위 셔플 후 5개 할당
+        //                 activeQuestions = [...questionPool].sort(() => 0.5 - Math.random()).slice(0, 5);
+        //                 document.getElementById('interview-answer').value = "";
+        //                 loadInterview();
+        //             } else if(gameState.currentStage === 'MISSION') {
+        //                 showScreen('mission');
+        //                 document.getElementById('mission-answer').value = "";
+        //             } else {
+        //                 showScreen(gameState.currentStage.toLowerCase());
+        //             }
+        //         } else {
+        //             // 동일한 퀴즈 단계 내에서 결과/랭킹 공개 상태가 바뀐 경우 처리
+        //             if(gameState.currentStage === 'QUIZ' && lastShowRanking !== gameState.showRanking) {
+        //                 lastShowRanking = gameState.showRanking;
+        //                 if(gameState.showRanking) { 
+        //                     showScreen('ranking'); 
+        //                     updateRankingUI(); 
+        //                 } else { 
+        //                     showScreen('quiz'); 
+        //                     renderQuiz(); 
+        //                     startTimer(gameState.timerEnd); 
+        //                 }
+        //             }
+        //         }
+        // });
 
-    // [실시간 상태 감시]
-   onSnapshot(doc(db, "gameConfig", "state"), (snapshot) => {
-    if (!snapshot.exists()) return;
-    
-    const newData = snapshot.data();
-    
-    // 단계가 바뀌거나, 퀴즈 단계에서 문제 번호가 바뀔 때만 실행
-    const stageChanged = gameState.currentStage !== newData.currentStage;
-    const questionChanged = gameState.currentQuestionIndex !== newData.currentQuestionIndex;
-    
-    gameState = newData;
-    
-    if (stageChanged || (gameState.currentStage === 'QUIZ' && questionChanged)) {
-        console.log("화면 갱신 실행:", gameState.currentStage, "Q:", gameState.currentQuestionIndex);
-        handleStateChange(gameState.currentStage);
-    }
-});
+        // // [추가] 최종 결과 렌더링 및 꽃가루
+        // async function renderFinalResult() {
+        //     // 우승팀 정보 표시
+        //     document.getElementById('final-winner-team').innerText = `${gameState.winnerTeam}조`;
+        //     document.getElementById('final-winner-score').innerText = `${(gameState.winnerScore || 0).toLocaleString()} PT`;
+            
+        //     // 내 점수 표시
+        //     const userSnap = await getDoc(doc(db, "users", currentUser.id));
+        //     if(userSnap.exists()) {
+        //         document.getElementById('final-my-score').innerText = `${(userSnap.data().score || 0).toLocaleString()} PT`;
+        //     }
 
-    
-// [맨 아래 초기 실행 로직 수정]
-// 페이지 로드 시점에 유저가 없으면 로그인 화면을 강제로 보여줌
-if(!currentUser) {
-    showScreen('login');
-} else {
-    console.log("기존 유저 세션 발견:", currentUser.name);
-    // 유저가 있으면 현재 게임 상태에 맞는 화면으로 이동
-    if(gameState.currentStage) {
-        handleStateChange(gameState.currentStage);
-    } else {
-        showScreen('lobby');
-    }
-}
-</script>
+        //     // 모든 유저의 폰에서 꽃가루 팡팡!
+        //     var duration = 5 * 1000;
+        //     var end = Date.now() + duration;
+
+        //     (function frame() {
+        //         confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 } });
+        //         confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 } });
+        //         if (Date.now() < end) { requestAnimationFrame(frame); }
+        //     }());
+        // }
+    </script>
 </body>
 </html>
