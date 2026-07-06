@@ -23,18 +23,25 @@
     <div class="max-w-6xl mx-auto">
         <!-- 상단 헤더 -->
         <div class="flex justify-between items-center mb-10 border-b border-gray-700 pb-5">
-            <div>
-                <h1 class="text-4xl font-black text-blue-400 italic">CONNECT ADMIN</h1>
-                <p class="text-gray-400">접속 인원: <span id="user-count" class="text-green-400 font-bold">0</span>명 | 상태:
-                    <span id="current-stage-text" class="text-yellow-400">-</span>
-                </p>
+            <div class="flex items-center gap-6">
+                <!-- QR 코드 추가 -->
+                <div class="bg-white p-2 rounded-lg shadow-lg flex flex-col items-center">
+                    <div onclick="openLargeQR()" class="bg-white p-2 rounded-lg shadow-lg flex flex-col items-center cursor-pointer hover:scale-105 transition-transform" title="클릭하면 크게 보기">
+                        <img id="qrcode-img" src="" alt="접속 QR" class="w-24 h-24">
+                        <p class="text-[10px] text-black font-bold mt-1 text-center leading-tight">클릭 시<br>QR 확대</p>
+                    </div>
+                    <p class="text-[10px] text-black font-bold mt-1">참가자 접속</p>
+                </div>
+                <div>
+                    <h1 class="text-4xl font-black text-blue-400 italic">CONNECT ADMIN</h1>
+                    <p class="text-gray-400">접속: <span id="user-count" class="text-green-400 font-bold">0</span>명 | 상태: <span id="current-stage-text" class="text-yellow-400">-</span></p>
+                </div>
             </div>
             <div class="flex gap-2">
-                <button onclick="setupAllQuizzes()"
-                    class="bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded text-xs font-bold">1. 전체 퀴즈 세팅
-                    (50문항)</button>
-                <button onclick="resetGame()"
-                    class="bg-red-900 hover:bg-red-800 text-red-100 px-4 py-2 rounded text-xs font-bold">전체 초기화</button>
+                <!-- 럭키 드로우 버튼 추가 -->
+                <button onclick="runLuckyDraw()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded text-xs font-bold animate-pulse">🎁 럭키 드로우</button>
+                <button onclick="setupAllQuizzes()" class="bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded text-xs font-bold">1. 전체 퀴즈 세팅</button>
+                <button onclick="resetGame()" class="bg-red-900 hover:bg-red-800 text-red-100 px-4 py-2 rounded text-xs font-bold">전체 초기화</button>
             </div>
         </div>
 
@@ -68,8 +75,7 @@
                     </div>
 
                     <button id="btn-RANKING" onclick="updateStage('RANKING')"
-                        class="stage-btn bg-gray-700 p-4 rounded-xl font-bold transition text-left mt-4">4. 최종 우승
-                        발표</button>
+                        class="stage-btn bg-gray-700 p-4 rounded-xl font-bold transition text-left mt-4">4. 최종 우승 발표</button>
                 </div>
             </div>
 
@@ -185,8 +191,12 @@
 
         // [다음 문제 출제]
         window.startNextQuiz = async () => {
+    
             const nextIdx = (gameState.currentQuestionIndex || 0) + 1;
-            const timerDuration = 3000; // 3초
+
+            if (nextIdx > 60) return alert("모든 60문제를 마쳤습니다!");
+
+            const timerDuration = 4000; // 4초로 변경
             const timerEnd = Date.now() + timerDuration;
 
             // 1. 퀴즈 데이터 업데이트
@@ -203,7 +213,7 @@
                 await updateDoc(doc(db, "gameConfig", "state"), {
                     showRanking: true
                 });
-            }, 3500);
+            }, 4500);
         };
 
 
@@ -213,9 +223,16 @@
 
         // [50문항 자동 세팅]
         window.setupAllQuizzes = async () => {
-            if (!confirm("성경/넌센스/교회 퀴즈 50문항을 세팅하시겠습니까?")) return;
+            if (!confirm("성경/넌센스/교회 퀴즈 총 50문항을 세팅하시겠습니까? (인터뷰 퀴즈 10개 포함 총 60개)")) return;
             const batch = writeBatch(db);
-
+            const shuffleArray = (array) => {
+                const newArr = [...array];
+                for (let i = newArr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+                }
+                return newArr;
+            };
             // 1. 성경/교회 퀴즈 (1~20번) - 40%
             const biblePool = [
                 { q: "성경의 첫 번째 책은?", a: ["창세기", "출애굽기", "레위기", "민수기"], c: "창세기" },
@@ -400,27 +417,27 @@
                 // 1-20: 성경
                 biblePool.forEach((item, i) => batch.set(doc(db, "quizzes", (i + 1).toString()), {
                     question: item.q,
-                    options: item.a,
+                    options: shuffleArray(item.a),
                     correctAnswer: item.c
                 }));
 
-                // 21-30: 넌센스 랜덤 10개
-                const selectedNonsense = nonsensePool.sort(() => 0.5 - Math.random()).slice(0, 10);
+                // 21-40: 넌센스 랜덤 10개
+                const selectedNonsense = nonsensePool.sort(() => 0.5 - Math.random()).slice(0, 20);
                 selectedNonsense.forEach((item, i) => batch.set(doc(db, "quizzes", (21 + i).toString()), {
                     question: item.q,
-                    options: item.a,
+                    options: shuffleArray(item.a),
                     correctAnswer: item.c
                 }));
 
-                // 41-50: 특별 퀴즈
-                specialPool.forEach((item, i) => batch.set(doc(db, "quizzes", (41 + i).toString()), {
+                // 51-60: 특별 퀴즈
+                specialPool.forEach((item, i) => batch.set(doc(db, "quizzes", (51 + i).toString()), {
                     question: item.q,
-                    options: item.a,
+                    options: shuffleArray(item.a),
                     correctAnswer: item.c
                 }));
 
                 await batch.commit();
-                alert("50문항 세팅 완료! (성경 20, 넌센스 10, 교회 10)");
+                alert("60문항 세팅 완료! (성경 20, 넌센스 20, 교회 10)");
             } catch (error) {
                 console.error("퀴즈 세팅 중 오류 발생:", error);
                 alert("퀴즈 세팅에 실패했습니다. Firebase 권한 규칙을 확인하세요: " + error.message);
@@ -455,7 +472,7 @@
             const selected = uniqueCandidates.sort(() => 0.5 - Math.random()).slice(0, 10);
 
             selected.forEach((data, i) => {
-                const qId = (31 + i).toString();
+                const qId = (41 + i).toString();
                 
                 // 오답 보기: 같은 조 사람들 중 랜덤 추출
                 const sameTeamOthers = all
@@ -517,58 +534,52 @@
             document.getElementById('user-count').innerText = snapshot.size;
 
             const users = [];
-            const teamScores = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+           const teamData = { 
+                "1": { sum: 0, count: 0 }, "2": { sum: 0, count: 0 }, 
+                "3": { sum: 0, count: 0 }, "4": { sum: 0, count: 0 }, "5": { sum: 0, count: 0 } 
+            };
 
             snapshot.forEach(doc => {
                 const u = doc.data();
-                // [중요] NaN 방지: 점수가 없거나 숫자가 아니면 0으로 처리
                 const score = Number(u.score) || 0;
-
                 users.push({ ...u, score });
-
-                // 팀별 점수 합산
-                if (u.team && teamScores[u.team] !== undefined) {
-                    teamScores[u.team] += score;
+                if(u.team && teamData[u.team]) {
+                    teamData[u.team].sum += score;
+                    teamData[u.team].count += 1;
                 }
             });
 
             // --- (1) 팀 랭킹 바 렌더링 ---
             const teamList = document.getElementById('team-ranking-list');
-            // 점수 높은 순으로 팀 정렬
-            const sortedTeams = Object.keys(teamScores).sort((a, b) => teamScores[b] - teamScores[a]);
+            const sortedTeams = Object.keys(teamData).sort((a, b) => {
+                const avgA = teamData[a].count ? teamData[a].sum / teamData[a].count : 0;
+                const avgB = teamData[b].count ? teamData[b].sum / teamData[b].count : 0;
+                return avgB - avgA;
+            });
 
             teamList.innerHTML = sortedTeams.map(teamId => {
-                const score = teamScores[teamId];
-                // 바 너비 계산 (최대 점수를 20,000점으로 가정, 상황에 따라 조절)
-                const maxExpectedScore = 20000;
-                const width = Math.max(2, Math.min(100, (score / maxExpectedScore) * 100));
-
+                const avg = teamData[teamId].count ? Math.floor(teamData[teamId].sum / teamData[teamId].count) : 0;
+                const width = Math.max(2, Math.min(100, (avg / 10000) * 100)); // 1만점 기준
                 return `
                     <div class="mb-2">
                         <div class="flex justify-between font-bold text-lg mb-1">
-                            <span>${teamId}조</span>
-                            <span class="text-blue-400">${score.toLocaleString()} PT</span>
+                            <span>${teamId}조 <small class="font-normal text-gray-400">(${teamData[teamId].count}명 평균)</small></span>
+                            <span class="text-blue-400">${avg.toLocaleString()} PT</span>
                         </div>
                         <div class="w-full bg-gray-900 h-6 rounded-full border border-gray-700 overflow-hidden">
-                            <div class="team-bar bg-gradient-to-r from-blue-600 to-cyan-400 h-full rounded-full" 
-                                style="width: ${width}%"></div>
+                            <div class="team-bar bg-gradient-to-r from-blue-600 to-cyan-400 h-full" style="width: ${width}%"></div>
                         </div>
-                    </div>
-                `;
+                    </div>`;
             }).join('');
 
-            // --- (2) 개인 TOP 5 랭킹 렌더링 ---
-            const userRankingList = document.getElementById('user-ranking-list');
-            // 점수 높은 순으로 유저 정렬
-            const topUsers = [...users].sort((a, b) => b.score - a.score).slice(0, 5);
-
+           const userRankingList = document.getElementById('user-ranking-list');
+            const topUsers = [...users].sort((a, b) => b.score - a.score); // slice 제거
             userRankingList.innerHTML = topUsers.map((u, i) => `
                 <div class="flex justify-between bg-gray-900 p-3 rounded-lg border border-gray-700 mb-1">
-                    <span class="font-bold">${i + 1}. ${u.name} <small class="text-gray-500">(${u.team}조)</small></span>
+                    <span class="font-bold">${i + 1}. ${u.name} (${u.team}조)</span>
                     <span class="text-yellow-400 font-black">${u.score.toLocaleString()}</span>
-                </div>
-            `).join('');
-
+                </div>`).join('');
+        
             // --- (3) 인터뷰 제출 현황 렌더링 ---
             const interviewList = document.getElementById('interview-list');
             interviewList.innerHTML = users.map(u => `
@@ -576,7 +587,7 @@
                     ${u.name}
                 </div>
             `).join('');
-        });
+            });
 
         // 3. 미션 데이터 실시간 감시 및 승인 화면 렌더링
         onSnapshot(collection(db, "missions"), (snapshot) => {
@@ -719,6 +730,57 @@
                 alert("초기화 중 오류 발생: " + e.message);
             }
         };
+
+        // 럭키 드로우 (상위 5명 제외 랜덤)
+        window.runLuckyDraw = async () => {
+            const snap = await getDocs(collection(db, "users"));
+            const users = [];
+            snap.forEach(d => users.push(d.data()));
+            
+            const candidates = users.sort((a,b) => (b.score||0) - (a.score||0)).slice(5);
+            if(candidates.length === 0) return alert("추첨할 인원이 부족합니다.");
+            
+            const winner = candidates[Math.floor(Math.random() * candidates.length)];
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            alert(`🎉 축하합니다! 럭키 드로우 당첨자: [${winner.team}조 ${winner.name}]`);
+        };
+
+        // [추가] QR 코드 크게 보기 (새 창 팝업)
+        window.openLargeQR = () => {
+            const participantUrl = "https://taeminbenlee.github.io/interaction_game/";
+            // 더 큰 사이즈의 QR 코드 생성 (500x500)
+            const largeQrImg = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(participantUrl)}`;
+            
+            // 새 창 열기
+            const qrWindow = window.open("", "QR_Code", "width=600,height=700");
+            
+            // 새 창에 HTML 주입
+            qrWindow.document.write(`
+                <html>
+                <head>
+                    <title>참가자 접속 QR</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        body { background-color: #f3f4f6; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; }
+                        .qr-container { background: white; padding: 40px; border-radius: 30px; shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <div class="qr-container shadow-2xl">
+                        <h1 class="text-3xl font-black text-blue-600 mb-6">CONNECT GAME 접속</h1>
+                        <img src="${largeQrImg}" style="width:400px; height:450px;" class="mx-auto mb-6">
+                        <p class="text-xl font-bold text-gray-700 mb-2">스마트폰 카메라로 스캔하세요!</p>
+                        <p class="text-blue-500 font-mono break-all">${participantUrl}</p>
+                        <button onclick="window.close()" class="mt-8 bg-gray-800 text-white px-6 py-2 rounded-full font-bold">닫기</button>
+                    </div>
+                </body>
+                </html>
+            `);
+        };
+
+        
+        //const participantUrl = "https://taeminbenlee.github.io/interaction_game/";
+        //document.getElementById('qrcode-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(participantUrl)}`;
     </script>
 </body>
 
