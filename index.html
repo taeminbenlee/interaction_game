@@ -75,8 +75,16 @@
             </p>
         </section>
 
+        
         <!-- 랭킹 화면 -->
         <section id="screen-ranking" class="screen mt-4">
+            <div id="last-quiz-review" class="hidden bg-white/90 border-2 border-yellow-400 p-4 rounded-2xl mb-6 text-left shadow-inner">
+                <p class="text-[10px] text-yellow-700 font-black mb-1 uppercase tracking-widest">Last Question Review</p>
+                <p id="review-q" class="text-sm font-bold text-gray-800 mb-2 leading-tight"></p>
+                <div class="bg-green-100 p-2 rounded-lg">
+                    <p id="review-a" class="text-base font-black text-green-700 text-center"></p>
+                </div>
+            </div>
             <h2 class="text-3xl font-black text-center mb-8 text-yellow-500 italic underline">RANKING</h2>
             <div class="bg-blue-600 text-white p-6 rounded-3xl shadow-xl mb-6 text-center">
                 <p class="text-sm opacity-80 mb-1">나의 현재 점수</p>
@@ -217,7 +225,7 @@
                 if(snap.exists()) {
                     const data = snap.data();
                     document.getElementById('quiz-question').innerText = data.question;
-                    document.getElementById('quiz-progress').innerText = `Q ${qIdx}/50`;
+                    document.getElementById('quiz-progress').innerText = `Q ${qIdx}/60`;
                     const container = document.getElementById('quiz-options');
                     container.innerHTML = "";
                     data.options.forEach(opt => {
@@ -248,7 +256,7 @@
                     b.disabled = true;
                     b.classList.remove('bg-white'); // 기존 하얀 배경 제거
                     
-                    if (b.innerText === correct) {
+                    if (b.innerText.trim() === correct.trim()) {
                         // 정답 보기는 무조건 초록색
                         b.classList.add('bg-green-500', 'text-white');
                     } else if (b === btn) {
@@ -279,34 +287,35 @@
         function startTimer(endTime) {
             document.getElementById('quiz-timeout-msg').classList.add('hidden');
             clearInterval(timerInterval);
-                const bar = document.getElementById('timer-bar');
-                const text = document.getElementById('quiz-timer-text');
+            const bar = document.getElementById('timer-bar');
+            const text = document.getElementById('quiz-timer-text');
                 
-                timerInterval = setInterval(() => {
-                    const now = Date.now();
-                    const remain = Math.max(0, (endTime - now) / 1000);
+            timerInterval = setInterval(() => {
+                const now = Date.now();
+                const remain = Math.max(0, (endTime - now) / 1000);
+                
+                text.innerText = Math.ceil(remain).toString().padStart(2, '0');
+                bar.style.width = `${(remain / 4) * 100}%`; 
+
+                if(remain <= 0) { 
+                    clearInterval(timerInterval); 
+                    text.innerText = "00";
+                    text.classList.add('animate-ping'); // 시간 종료 시 깜빡임
+                    document.getElementById('quiz-timeout-msg').classList.remove('hidden');
                     
-                    text.innerText = Math.ceil(remain).toString().padStart(2, '0');
-                    bar.style.width = `${(remain / 3) * 100}%`;
- 
-                    if(remain <= 0) { 
-                        clearInterval(timerInterval); 
-                        text.innerText = "00";
-                        text.classList.add('animate-ping'); // 시간 종료 시 깜빡임
-                        document.getElementById('quiz-timeout-msg').classList.remove('hidden');
-                        
-                        // 시간 종료 시, 아무것도 고르지 못한 유저들에게 정답을 하이라이트해서 공개
-                        document.querySelectorAll('#quiz-options button').forEach(b => {
-                            b.disabled = true;
-                            b.classList.remove('bg-white');
-                            if (b.innerText === window.currentCorrectAnswer) {
-                                b.classList.add('bg-green-500', 'text-white');
-                            } else {
-                                b.classList.add('bg-gray-200', 'text-gray-400', 'opacity-50');
-                            }
-                        });
-                    }
-                }, 50);
+                    // 시간 종료 시, 아무것도 고르지 못한 유저들에게 정답을 하이라이트해서 공개
+                    document.querySelectorAll('#quiz-options button').forEach(b => {
+                        b.disabled = true;
+                        b.classList.remove('bg-white');
+                        if (b.innerText === window.currentCorrectAnswer) {
+                            b.classList.add('bg-green-500', 'text-white');
+                        } else {
+                            b.classList.add('bg-gray-200', 'text-gray-400', 'opacity-50');
+                        }
+                    });
+                }
+            }, 50);
+            
         }
 
         async function updateRankingUI() {
@@ -349,6 +358,15 @@
                     topHtml += `<div class="flex justify-between"><span>${i+1}위: ${u.name}</span><span>${u.score.toLocaleString()} PT</span></div>`;
                 });
                 document.getElementById('top-players-display').innerHTML = topHtml;
+
+                const qIdx = gameState.currentQuestionIndex;
+                const snap = await getDoc(doc(db, "quizzes", qIdx.toString()));
+                if(snap.exists()) {
+                    const data = snap.data();
+                    document.getElementById('last-quiz-review').classList.remove('hidden');
+                    document.getElementById('review-q').innerText = `Q${qIdx}. ${data.question}`;
+                    document.getElementById('review-a').innerText = `정답: ${data.correctAnswer}`;
+                }
         }
 
         let lastStage = null;
