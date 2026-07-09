@@ -16,6 +16,10 @@
             border: 4px solid #60a5fa;
             background-color: #1e40af;
         }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; }
     </style>
 </head>
 
@@ -85,8 +89,11 @@
                 <div id="team-ranking-list" class="flex flex-col gap-8"></div>
                 <div class="mt-16 grid grid-cols-2 gap-8">
                     <div>
-                        <h2 class="text-xl font-bold mb-4 text-yellow-500 italic">TOP 5 PLAYERS</h2>
-                        <div id="user-ranking-list" class="flex flex-col gap-2"></div>
+                        <h2 class="text-xl font-bold mb-4 text-yellow-500 italic uppercase tracking-wider">All Players Ranking</h2>
+                        <!-- max-h를 설정하여 인원이 많아지면 내부 스크롤이 생기도록 함 -->
+                        <div id="user-ranking-list" class="flex flex-col gap-2 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                            <!-- 전체 순위 리스트가 여기에 렌더링됨 -->
+                        </div>
                     </div>
                     <div>
                         <h2 class="text-xl font-bold mb-4 text-green-500 italic">SUBMISSION</h2>
@@ -371,7 +378,24 @@
         }).join('');
 
         const userRankingList = document.getElementById('user-ranking-list');
-        userRankingList.innerHTML = [...users].sort((a, b) => b.score - a.score).slice(0, 10).map((u, i) => `<div class="flex justify-between bg-gray-900 p-3 rounded-lg border border-gray-700 mb-1"><span class="font-bold">${i + 1}. ${u.name} (${u.team}조)</span><span class="text-yellow-400 font-black">${u.score.toLocaleString()}</span></div>`).join('');
+        // userRankingList.innerHTML = [...users].sort((a, b) => b.score - a.score).slice(0, 10).map((u, i) => `<div class="flex justify-between bg-gray-900 p-3 rounded-lg border border-gray-700 mb-1"><span class="font-bold">${i + 1}. ${u.name} (${u.team}조)</span><span class="text-yellow-400 font-black">${u.score.toLocaleString()}</span></div>`).join('');
+        
+        const allSortedUsers = [...users].sort((a, b) => b.score - a.score);
+        userRankingList.innerHTML = allSortedUsers.map((u, i) => {
+            // 상위 3명은 금, 은, 동 느낌의 테두리 강조
+            const rankColor = i === 0 ? 'border-yellow-500' : i === 1 ? 'border-gray-400' : i === 2 ? 'border-orange-600' : 'border-gray-700';
+            const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span class="inline-block w-5 text-gray-500 text-xs">${i + 1}</span>`;
+    
+            return `
+                <div class="flex justify-between items-center bg-gray-900 p-3 rounded-lg border ${rankColor} mb-1 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        ${rankIcon}
+                        <span class="font-bold text-sm">${u.name}</span>
+                        <span class="text-[10px] bg-gray-800 px-2 py-0.5 rounded text-gray-400">${u.team}조</span>
+                    </div>
+                    <span class="text-yellow-400 font-black font-mono text-sm">${u.score.toLocaleString()}</span>
+                </div>`;
+        }).join('');
         
         const interviewList = document.getElementById('interview-list');
         interviewList.innerHTML = users.map(u => `<div class="px-3 py-1 rounded-full text-xs font-bold ${u.interviewDone ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}">${u.name}</div>`).join('');
