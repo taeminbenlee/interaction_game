@@ -138,18 +138,53 @@
             lastUpdate: serverTimestamp()
         };
 
+        // if (stage === 'RANKING') {
+        //     const snap = await getDocs(collection(db, "users"));
+        //     const teamScores = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+        //     snap.forEach(d => {
+        //         const u = d.data();
+        //         const score = Number(u.score) || 0;
+        //         if(u.team) teamScores[u.team] += score;
+        //     });
+        //     const winnerTeam = Object.keys(teamScores).reduce((a, b) => teamScores[a] > teamScores[b] ? a : b);
+        //     updateData.winnerTeam = winnerTeam;
+        //     updateData.winnerScore = teamScores[winnerTeam];
+        //     confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+        // }
         if (stage === 'RANKING') {
             const snap = await getDocs(collection(db, "users"));
-            const teamScores = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+            const teamData = { 
+                "1": { sum: 0, count: 0 }, "2": { sum: 0, count: 0 }, 
+                "3": { sum: 0, count: 0 }, "4": { sum: 0, count: 0 }, "5": { sum: 0, count: 0 } 
+            };
+            
             snap.forEach(d => {
                 const u = d.data();
                 const score = Number(u.score) || 0;
-                if(u.team) teamScores[u.team] += score;
+                if(u.team && teamData[u.team]) {
+                    teamData[u.team].sum += score;
+                    teamData[u.team].count += 1;
+                }
             });
-            const winnerTeam = Object.keys(teamScores).reduce((a, b) => teamScores[a] > teamScores[b] ? a : b);
+    
+            // 각 조별 평균 점수 계산
+            const teamAverages = {};
+            Object.keys(teamData).forEach(teamId => {
+                teamAverages[teamId] = teamData[teamId].count > 0 
+                    ? teamData[teamId].sum / teamData[teamId].count 
+                    : 0;
+            });
+    
+            // 평균 점수가 가장 높은 팀 찾기
+            const winnerTeam = Object.keys(teamAverages).reduce((a, b) => 
+                teamAverages[a] > teamAverages[b] ? a : b
+            );
+            
             updateData.winnerTeam = winnerTeam;
-            updateData.winnerScore = teamScores[winnerTeam];
-            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+            updateData.winnerScore = Math.floor(teamAverages[winnerTeam]); // 평균 점수를 저장
+    
+            // 관리자 화면 꽃가루
+            confetti({ particleCount: 250, spread: 100, origin: { y: 0.6 } });
         }
         await setDoc(doc(db, "gameConfig", "state"), updateData, { merge: true });
     };
