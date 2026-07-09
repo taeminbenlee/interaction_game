@@ -332,95 +332,116 @@
         }
 
         async function updateRankingUI() {
-             const { getDocs, collection, query, orderBy, limit } = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
-    
-                // 1. 모든 유저 데이터를 가져와서 팀 점수 계산
+            const { getDocs, collection, query, where, getDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js");
+        
+            try {
+                // 1. 문제 복기 및 선택 분포 통계 가져오기
+                const qIdx = gameState.currentQuestionIndex;
+                if (qIdx) {
+                    const quizSnap = await getDoc(doc(db, "quizzes", qIdx.toString()));
+                    if (quizSnap.exists()) {
+                        const qData = quizSnap.data();
+                        document.getElementById('last-quiz-review').classList.remove('hidden');
+                        document.getElementById('review-q').innerText = `Q${qIdx}. ${qData.question}`;
+                        document.getElementById('review-a').innerText = `정답: ${qData.correctAnswer}`;
+        
+                        // --- [추가] 선택 분포 통계 집계 ---
+                        const answersQuery = query(collection(db, "quizAnswers"), where("quizId", "==", qIdx));
+                        const answersSnap = await getDocs(answersQuery);
+                        
+                        const stats = {};
+                        // 모든 보기에 대해 0으로 초기화
+                        qData.options.forEach(opt => stats[opt] = 0);
+                        // 실제 선택 데이터 카운트
+                        answersSnap.forEach(d => {
+                            const chosenOpt = d.data().option;
+                            if (stats[chosenOpt] !== undefined) stats[chosenOpt]++;
+                        });
+        
+                        const totalVotes = answersSnap.size || 1; // 0나누기 방지
+                        
+                        // 통계 UI 생성 (막대 그래프 형태)
+                        let statsHtml = `<div class="mt-4 space-y-2 border-t border-yellow-200 pt-4">
+                                            <p class="text-[10px] font-black text-yellow-600 uppercase mb-2 tracking-tighter">Answer Distribution (${answersSnap.size}명 참여)</p>`;
+                        
+                        qData.options.forEach(opt => {
+                            const count = stats[opt] || 0;
+                            const percent = Math.round((count / totalVotes) * 100);
+                            const isCorrect = opt.trim() === qData.correctAnswer.trim();
+                            
+                            statsHtml += `
+                                <div class="relative h-7 bg-gray-100 rounded-lg overflow-hidden border ${isCorrect ? 'border-green-300' : 'border-gray-200'}">
+                                    <!-- 배경 막대 -->
+                                    <div class="absolute top-0 left-0 h-full transition-all duration-1000 ${isCorrect ? 'bg-green-200' : 'bg-blue-100'}" style="width: ${percent}%"></div>
+                                    <!-- 텍스트 레이어 -->
+                                    <div class="absolute top-0 left-0 w-full h-full px-3 flex justify-between items-center text-[11px] font-bold">
+                                        <span class="truncate mr-2 ${isCorrect ? 'text-green-800' : 'text-gray-600'}">${opt}</span>
+                                        <span class="whitespace-nowrap ${isCorrect ? 'text-green-700' : 'text-blue-500'}">${count}명 (${percent}%)</span>
+                                    </div>
+                                </div>`;
+                        });
+                        statsHtml += `</div>`;
+                        
+                        // 기존 review-stats 영역이 있으면 교체, 없으면 새로 생성
+                        let statsDiv = document.getElementById('review-stats');
+                        if (!statsDiv) {
+                            statsDiv = document.createElement('div');
+                            statsDiv.id = 'review-stats';
+                            document.getElementById('last-quiz-review').appendChild(statsDiv);
+                        }
+                        statsDiv.innerHTML = statsHtml;
+                    }
+                }
+        
+                // 2. 모든 유저 데이터를 가져와서 팀 점수 및 랭킹 계산
                 const allUsersSnap = await getDocs(collection(db, "users"));
                 let teamTotalScore = 0;
+                let teamCount = 0;
                 const users = [];
-                
+        
                 allUsersSnap.forEach(d => {
                     const data = d.data();
-                    const score = Number(data.score) || 0; // NaN 방지
+                    const score = Number(data.score) || 0;
                     users.push({ ...data, score });
-                    if(data.team === currentUser.team) teamTotalScore += score;
+                    if (data.team === currentUser.team) {
+                        teamTotalScore += score;
+                        teamCount++;
+                    }
                 });
-
-                // 2. 내 점수 표시
+        
+                // 3. 내 점수 표시
                 const myData = users.find(u => u.id === currentUser.id);
                 document.getElementById('my-score-display').innerText = (myData?.score || 0).toLocaleString() + " PT";
- 
-                // 2.5 우리 팀 에이스 계산
+        
+                // 4. 우리 팀 에이스 계산
                 const teamUsers = users.filter(u => u.team === currentUser.team);
                 let aceName = "없음";
                 let aceScore = 0;
                 if (teamUsers.length > 0) {
-                    const ace = teamUsers.reduce((prev, current) => (Number(prev.score) || 0) > (Number(current.score) || 0) ? prev : current);
+                    const ace = teamUsers.reduce((prev, current) => (prev.score > current.score) ? prev : current);
                     aceName = ace.name;
-                    aceScore = Number(ace.score) || 0;
+                    aceScore = ace.score;
                 }
-
-                // 3. 우리 팀 점수 표시
-                document.getElementById('team-rank-display').innerText = `${currentUser.team}조 합계: ${teamTotalScore.toLocaleString()} PT`;
+        
+                // 5. 우리 팀 평균 점수 표시 (인원수 차이 고려)
+                const teamAvg = teamCount > 0 ? Math.floor(teamTotalScore / teamCount) : 0;
+                document.getElementById('team-rank-display').innerText = `${currentUser.team}조 평균: ${teamAvg.toLocaleString()} PT`;
                 document.getElementById('team-ace-display').innerHTML = `👑 우리 팀 에이스: <span class="text-blue-600">${aceName}</span> (${aceScore.toLocaleString()} PT)`;
- 
-                // 4. 전체 TOP 3 표시 (NaN 방지)
+        
+                // 6. 전체 TOP 3 표시
                 const top3 = users.sort((a, b) => b.score - a.score).slice(0, 3);
                 let topHtml = "";
                 top3.forEach((u, i) => {
-                    topHtml += `<div class="flex justify-between"><span>${i+1}위: ${u.name}</span><span>${u.score.toLocaleString()} PT</span></div>`;
+                    topHtml += `<div class="flex justify-between items-center py-1 border-b border-gray-50 last:border-0">
+                                    <span class="text-sm"><b class="text-blue-500 mr-1">${i + 1}위</b> ${u.name}</span>
+                                    <span class="text-sm font-mono font-bold">${u.score.toLocaleString()} PT</span>
+                                </div>`;
                 });
-                document.getElementById('top-players-display').innerHTML = topHtml;
-
-                const qIdx = gameState.currentQuestionIndex;
-                const snap = await getDoc(doc(db, "quizzes", qIdx.toString()));
-                if(snap.exists()) {
-                    const data = snap.data();
-                    document.getElementById('last-quiz-review').classList.remove('hidden');
-                    document.getElementById('review-q').innerText = `Q${qIdx}. ${data.question}`;
-                    document.getElementById('review-a').innerText = `정답: ${data.correctAnswer}`;
-                    const answersQuery = query(collection(db, "quizAnswers"), where("quizId", "==", qIdx));
-                    const answersSnap = await getDocs(answersQuery);
-                    const stats = {};
-                    // 모든 보기에 대해 0으로 초기화
-                    qData.options.forEach(opt => stats[opt] = 0);
-                    // 실제 선택 데이터 카운트
-                    answersSnap.forEach(d => {
-                        const chosenOpt = d.data().option;
-                        if(stats[chosenOpt] !== undefined) stats[chosenOpt]++;
-                    });
-
-                    // 통계 UI 생성
-                    let statsHtml = `<div class="mt-4 space-y-2 border-t pt-4">
-                                        <p class="text-[10px] font-bold text-gray-400 uppercase mb-2">Answer Distribution</p>`;
-                    const totalVotes = answersSnap.size || 1;
-                    
-                    qData.options.forEach(opt => {
-                        const count = stats[opt] || 0;
-                        const percent = Math.round((count / totalVotes) * 100);
-                        const isCorrect = opt === qData.correctAnswer;
-                        
-                        statsHtml += `
-                            <div class="relative h-8 bg-gray-100 rounded-lg overflow-hidden border ${isCorrect ? 'border-green-300' : 'border-gray-200'}">
-                                <div class="absolute top-0 left-0 h-full ${isCorrect ? 'bg-green-200' : 'bg-blue-100'}" style="width: ${percent}%"></div>
-                                <div class="absolute top-0 left-0 w-full h-full px-3 flex justify-between items-center text-xs font-bold">
-                                    <span class="${isCorrect ? 'text-green-800' : 'text-gray-700'}">${opt}</span>
-                                    <span class="text-blue-600">${count}명 (${percent}%)</span>
-                                </div>
-                            </div>`;
-                    });
-                    statsHtml += `</div>`;
-                    
-                    // 기존 review-a 아래에 통계 추가 (없으면 생성)
-                    const existingStats = document.getElementById('review-stats');
-                    if(existingStats) existingStats.innerHTML = statsHtml;
-                    else {
-                        const div = document.createElement('div');
-                        div.id = 'review-stats';
-                        div.innerHTML = statsHtml;
-                        document.getElementById('last-quiz-review').appendChild(div);
-                    }
-                }
+                document.getElementById('top-players-display').innerHTML = topHtml || "데이터 없음";
+        
+            } catch (e) {
+                console.error("랭킹 UI 업데이트 중 오류:", e);
+            }
         }
 
         let lastStage = null;
